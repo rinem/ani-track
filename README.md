@@ -24,6 +24,9 @@ To get started, you'll need a 'Client ID' and 'Client Secret' from MyAnimeList's
 
 4. 📜 **Fill in the app details**.
 
+Example 
+![MAL API Client Example](https://github.com/rinem/anixplore/assets/mal-client.png)
+
 5. 🌐 **In the App Redirect URL field of the app you created, please enter the following URLs:**
 
    - 📎 `http://localhost:9999/oauth/callback`

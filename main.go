@@ -107,17 +107,13 @@ func writeTokenToFile(token *oauth2.Token) error {
 }
 
 func generateCodeVerifierAndChallenge() (string, string) {
-	// Generate random bytes
 	randomBytes := make([]byte, 64)
 	_, err := rand.Read(randomBytes)
 	if err != nil {
 		log.Fatal("Failed to generate random bytes:", err)
 	}
 
-	// Encode the random bytes to base64 URL encoding
 	codeVerifier := base64.URLEncoding.EncodeToString(randomBytes)
-
-	// Trim the padding characters "=" from the end
 	codeVerifier = codeVerifier[:len(codeVerifier)-2]
 
 	return codeVerifier, codeVerifier
