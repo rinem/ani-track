@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -12,6 +14,7 @@ import (
 	"path/filepath"
 
 	"github.com/joho/godotenv"
+	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
 )
@@ -24,6 +27,7 @@ const (
 var (
 	config *oauth2.Config
 	token  *oauth2.Token
+	server *http.Server
 )
 
 func main() {
@@ -71,29 +75,33 @@ func loginCmd() *cobra.Command {
 
 			fmt.Println("Login successful. Token saved.")
 		},
+		PostRun: func(cmd *cobra.Command, args []string) {
+			shutdownServer()
+		},
 	}
 }
 
 func searchCmd() *cobra.Command {
-	return &cobra.Command{
+	var limit string
+
+	cmd := &cobra.Command{
 		Use:   "search [query]",
 		Short: "Search for anime on MyAnimeList",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			query := args[0]
-			limit := cmd.Flag("limit").Value.String()
 
 			tokenFile, err := getTokenFilePath()
 			if err != nil {
 				log.Fatal(err)
 			}
 
-			token, err := readTokenFromFile(tokenFile)
+			accessToken, err := readAccessTokenFromFile(tokenFile)
 			if err != nil {
 				log.Fatal(err)
 			}
 
-			result, err := searchAnime(query, limit, token.AccessToken)
+			result, err := searchAnime(query, limit, accessToken)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -104,15 +112,21 @@ func searchCmd() *cobra.Command {
 			}
 		},
 	}
+
+	cmd.Flags().StringVarP(&limit, "limit", "l", "5", "Limit search results")
+
+	return cmd
 }
 
 func userListCmd() *cobra.Command {
-	return &cobra.Command{
+	var limit string
+	cmd := &cobra.Command{
 		Use:   "userlist [username]",
 		Short: "Get anime list of a user from MyAnimeList",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			username := args[0]
+
 			limit := cmd.Flag("limit").Value.String()
 
 			tokenFile, err := getTokenFilePath()
@@ -120,12 +134,12 @@ func userListCmd() *cobra.Command {
 				log.Fatal(err)
 			}
 
-			token, err := readTokenFromFile(tokenFile)
+			token, err := readAccessTokenFromFile(tokenFile)
 			if err != nil {
 				log.Fatal(err)
 			}
 
-			result, err := getUserAnimeList(username, limit, token.AccessToken)
+			result, err := getUserAnimeList(username, limit, token)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -136,6 +150,10 @@ func userListCmd() *cobra.Command {
 			}
 		},
 	}
+
+	cmd.Flags().StringVarP(&limit, "limit", "l", "5", "Limit results")
+
+	return cmd
 }
 
 func getTokenFilePath() (string, error) {
@@ -148,6 +166,12 @@ func getTokenFilePath() (string, error) {
 }
 
 func getToken() (*oauth2.Token, error) {
+	codeChan := make(chan string)
+	defer close(codeChan)
+
+	server = startServer(codeChan)
+	defer shutdownServer()
+
 	codeVerifier, codeChallenge := generateCodeVerifierAndChallenge()
 
 	url := config.AuthCodeURL("state", oauth2.SetAuthURLParam("code_challenge", codeChallenge))
@@ -155,12 +179,45 @@ func getToken() (*oauth2.Token, error) {
 	fmt.Printf("Please visit the following URL to login: \n%s\n", url)
 	fmt.Println("After successful login, please enter the code here: ")
 
-	var code string
-	if _, err := fmt.Scan(&code); err != nil {
-		return nil, err
+	if err := browser.OpenURL(url); err != nil {
+		panic(fmt.Errorf("failed to open browser for authentication %s", err.Error()))
 	}
+	code := <-codeChan
 
 	return exchangeAuthorizationCodeForToken(config, code, codeVerifier)
+}
+
+func startServer(codeChan chan string) *http.Server {
+	server := &http.Server{Addr: ":9999"}
+	http.HandleFunc("/oauth/callback", handleOAuthCallback(codeChan))
+
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Failed to start server: %v", err)
+		}
+	}()
+	return server
+}
+
+func shutdownServer() {
+	if server != nil {
+		if err := server.Shutdown(context.Background()); err != nil {
+			log.Fatalf("Failed to shut down server: %v", err)
+		}
+	}
+}
+
+func handleOAuthCallback(codeChan chan string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		queryParts := r.URL.Query()
+
+		code := queryParts.Get("code")
+
+		codeChan <- code
+
+		msg := "<p><strong>Authentication successful</strong>. You may now close this tab.</p>"
+		fmt.Fprint(w, msg)
+	}
 }
 
 func exchangeAuthorizationCodeForToken(config *oauth2.Config, code, codeVerifier string) (*oauth2.Token, error) {
@@ -190,34 +247,61 @@ func exchangeAuthorizationCodeForToken(config *oauth2.Config, code, codeVerifier
 	return &token, nil
 }
 
-func readTokenFromFile(filePath string) (*oauth2.Token, error) {
+func readAccessTokenFromFile(filePath string) (string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	defer file.Close()
 
-	var token oauth2.Token
-	if err := json.NewDecoder(file).Decode(&token); err != nil {
-		return nil, err
+	var tokenData map[string]interface{}
+	if err := json.NewDecoder(file).Decode(&tokenData); err != nil {
+		return "", err
+	}
+	accessToken, ok := tokenData["access_token"].(string)
+	if !ok {
+		return "", errors.New("access token not found or not a string")
 	}
 
-	return &token, nil
+	return accessToken, nil
 }
 
 func writeTokenToFile(token *oauth2.Token, filePath string) error {
-	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	file, err := os.Create(filePath)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	if err := json.NewEncoder(file).Encode(token); err != nil {
+	tokenData := map[string]interface{}{
+		"access_token":  token.AccessToken,
+		"refresh_token": token.RefreshToken,
+		"expiry":        token.Expiry,
+	}
+
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(tokenData); err != nil {
 		return err
 	}
 
 	return nil
 }
+
+// func writeTokenToFile(token *oauth2.Token, filePath string) error {
+// 	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer file.Close()
+//
+// 	_, err = fmt.Fprintf(file, "%s\n", token)
+// 	if err != nil {
+// 		return err
+// 	}
+//
+// 	return nil
+// }
 
 func generateCodeVerifierAndChallenge() (string, string) {
 	randomBytes := make([]byte, 64)
@@ -240,7 +324,7 @@ type AnimeSearchResult struct {
 }
 
 func searchAnime(query, limit, accessToken string) (*AnimeSearchResult, error) {
-	searchURL := fmt.Sprintf("%s/anime?q=%s&limit=%s", apiBaseURL, query, limit)
+	searchURL := fmt.Sprintf("%sanime?q=%s&limit=%s", apiBaseURL, query, limit)
 	req, err := http.NewRequest("GET", searchURL, nil)
 	if err != nil {
 		return nil, err
@@ -271,7 +355,7 @@ type UserAnimeListResult struct {
 }
 
 func getUserAnimeList(username, limit, accessToken string) (*UserAnimeListResult, error) {
-	userListURL := fmt.Sprintf("%s/users/%s/animelist?fields=list_status&limit=%s", apiBaseURL, username, limit)
+	userListURL := fmt.Sprintf("%susers/%s/animelist?fields=list_status&limit=%s", apiBaseURL, username, limit)
 	req, err := http.NewRequest("GET", userListURL, nil)
 	if err != nil {
 		return nil, err
