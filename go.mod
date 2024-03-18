@@ -1,4 +1,4 @@
-module github.com/rinem/anixplore
+module github.com/rinem/ani-track
 
 go 1.21
 

@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>🚀 AniXplore - A MyAnimeList CLI Client</h1>
+  <h1>🚀 AniTrack - A MyAnimeList CLI Client</h1>
 </div>
 
 A command line client built with Go that interfaces MyAnimeList API for viewing top anime, anime details, updating user's anime lists and more
@@ -24,7 +24,7 @@ To get started, you'll need a 'Client ID' and 'Client Secret' from MyAnimeList's
 
 4. 📜 **Fill in the app details like example below**.
 
-![MAL API Client Example](https://raw.githubusercontent.com/rinem/anixplore/main/assets/mal-client.png)
+![MAL API Client Example](https://raw.githubusercontent.com/rinem/ani-track/main/assets/mal-client.png)
 
 5. 🌐 **In the App Redirect URL field of the app you created, please enter the following URLs:**
 

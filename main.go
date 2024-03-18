@@ -10,12 +10,15 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 
 	"github.com/fatih/color"
 	"github.com/joho/godotenv"
 	"github.com/pkg/browser"
 	"golang.org/x/oauth2"
 )
+
+const tokenFileName = ".anitrack.conf"
 
 func main() {
 	if err := godotenv.Load(); err != nil {
@@ -93,14 +96,21 @@ func handleOAuthCallback(codeChan chan string) http.HandlerFunc {
 }
 
 func writeTokenToFile(token *oauth2.Token) error {
-	file, err := os.OpenFile("token.json", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("Unable to create token file: %v", err)
+		return fmt.Errorf("unable to determine user's home directory: %v", err)
+	}
+
+	tokenFilePath := filepath.Join(homeDir, tokenFileName)
+
+	file, err := os.OpenFile(tokenFilePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return fmt.Errorf("unable to create token file: %v", err)
 	}
 	defer file.Close()
 
 	if err := json.NewEncoder(file).Encode(token); err != nil {
-		return fmt.Errorf("Unable to write token to file: %v", err)
+		return fmt.Errorf("unable to write token to file: %v", err)
 	}
 
 	return nil
