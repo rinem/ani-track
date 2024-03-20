@@ -32,14 +32,9 @@ To get started, you'll need a 'Client ID' and 'Client Secret' from MyAnimeList's
 
 6. 🛍 **Once the App is created**, you'll find the 'Client ID' and 'Client Secret' on the app details page.
 
-7. 🔑 **Add Credentials in .env**:
-    - Create a .env file in the root directory of this project and copy these values by adding your MAL client id and client secret.
-```
-# MAL
-MAL_CLIENT_ID="<CLIENT ID GOES HERE>"
-MAL_CLIENT_SECRET="<CLIENT SECRET GOES HERE>"
-REDIRECT_URL="http://localhost:9999/oauth/callback"
-```
+7. 🔑 **Input client id and client secret during login**:
+    - Perform login using the command `ani-track login` or `go run main.go login` if testing. You will be asked for the client id and client secret you just created so input that and then you can perform oauth login with MAL
+    - Your access token will be saved in the home directory and will be used for further api requests
 
 🚫 **Remember**: Keep your 'Client Secret and Client Id' confidential. Never share it! They can be used to control your MyAnimeList data.
 
@@ -47,9 +42,10 @@ REDIRECT_URL="http://localhost:9999/oauth/callback"
 
 # 📝 TODO List
 - [x] Setup oauth with MyAnimeList API
-- [ ] Use access token to authenticate User's requests and refresh token when access token expired
-- [ ] Add methods for calling different API endpoints of MAL
-- [ ] Integrate Cobra and add CLI commands to use different methods
+- [x] Add methods for calling different API endpoints of MAL
+- [x] Integrate Cobra and add CLI commands to use different methods
+- [ ] Add logic to use refresh token when access token is expired in any api request
+- [ ] Add edit and update API calls
 - [ ] Improve UI of the CLI results
 
 ---

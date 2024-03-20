@@ -13,7 +13,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/joho/godotenv"
 	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
@@ -31,20 +30,15 @@ var (
 )
 
 func main() {
-	if err := godotenv.Load(); err != nil {
-		log.Fatal("Error loading .env file")
-	}
 
 	config = &oauth2.Config{
-		ClientID:     os.Getenv("MAL_CLIENT_ID"),
-		ClientSecret: os.Getenv("MAL_CLIENT_SECRET"),
-		Scopes:       []string{"read"},
+		Scopes: []string{"read"},
 		Endpoint: oauth2.Endpoint{
 			AuthURL:   "https://myanimelist.net/v1/oauth2/authorize",
 			TokenURL:  "https://myanimelist.net/v1/oauth2/token",
 			AuthStyle: oauth2.AuthStyleInParams,
 		},
-		RedirectURL: os.Getenv("REDIRECT_URL"),
+		RedirectURL: "http://localhost:9999/oauth/callback",
 	}
 
 	rootCmd := &cobra.Command{Use: "ani-track"}
@@ -172,6 +166,19 @@ func getToken() (*oauth2.Token, error) {
 	server = startServer(codeChan)
 	defer shutdownServer()
 
+	// Get client id and secret from env if present else ask user
+	clientId := ""
+	clientSecret := ""
+	fmt.Print("Enter MAL client ID: ")
+	fmt.Scanln(&clientId)
+
+	fmt.Print("Enter MAL client secret: ")
+	fmt.Scanln(&clientSecret)
+
+	// Update config with user-provided client ID and client secret
+	config.ClientID = clientId
+	config.ClientSecret = clientSecret
+
 	codeVerifier, codeChallenge := generateCodeVerifierAndChallenge()
 
 	url := config.AuthCodeURL("state", oauth2.SetAuthURLParam("code_challenge", codeChallenge))
@@ -225,7 +232,7 @@ func exchangeAuthorizationCodeForToken(config *oauth2.Config, code, codeVerifier
 	values.Set("client_id", config.ClientID)
 	values.Set("client_secret", config.ClientSecret)
 	values.Set("code", code)
-	values.Set("redirect_uri", os.Getenv("REDIRECT_URL"))
+	values.Set("redirect_uri", config.RedirectURL)
 	values.Set("code_verifier", codeVerifier)
 	values.Set("grant_type", "authorization_code")
 
