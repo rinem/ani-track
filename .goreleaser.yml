@@ -1,0 +1,32 @@
+builds:
+  - binary: ani-track
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -mod=vendor
+
+release:
+  prerelease: auto
+
+universal_binaries:
+  - replace: true
+
+brews:
+  -
+    name: ani-track
+    homepage: https://github.com/rinem/ani-track
+    tap:
+      owner: rinem
+      name: homebrew-rinem
+    commit_author:
+      name: rinem
+      email: roshanmishrarinem@gmail.com
+
+checksum:
+  name_template: 'checksums.txt'
