@@ -23,6 +23,7 @@ const (
 
 var (
 	config *oauth2.Config
+	token  *oauth2.Token
 	server *http.Server
 )
 
@@ -84,7 +85,7 @@ func GetToken() (*oauth2.Token, error) {
 
 func StartServer(codeChan chan string) *http.Server {
 	server := &http.Server{Addr: ":9999"}
-	http.HandleFunc("/oauth/callback", handleOAuthCallback(codeChan))
+	http.HandleFunc("/oauth/callback", HandleOAuthCallback(codeChan))
 
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
